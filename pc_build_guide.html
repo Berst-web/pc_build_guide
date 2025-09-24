@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Интерактивный гид по сборке ПК</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm Harmony (Slate/Stone neutrals with a muted Sky Blue accent) -->
+    <!-- Application Structure Plan: A dashboard-style single-page application. The layout features a main header with the total build cost, followed by a two-column section containing an interactive horizontal bar chart for price comparison on the left, and a dynamic detail panel on the right. Below this is a grid of clickable component cards. This structure was chosen to immediately provide a high-level cost overview via the chart, while allowing intuitive exploration of component details through two synchronized methods (clicking the chart or the cards). This prevents overwhelming the user with a large table and instead creates an engaging, guided discovery flow. -->
+    <!-- Visualization & Content Choices: 1. Price Comparison: Goal=Compare -> Viz=Horizontal Bar Chart -> Interaction=Click bar to update detail panel & highlight -> Justification=Clearly shows cost disparity between components, better than a table for quick visual assessment -> Library=Chart.js (Canvas). 2. Component Details: Goal=Inform -> Method=Dynamic HTML text block -> Interaction=Content updates on selection -> Justification=Shows detailed info without cluttering the main view. 3. Component Selection: Goal=Organize/Navigate -> Method=Grid of styled cards -> Interaction=Click card to update chart/details -> Justification=Provides a clear, accessible alternative to chart interaction -> Library=HTML/CSS/JS. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 400px;
+            max-height: 50vh;
+        }
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 300px;
+            }
+        }
+        .card {
+            transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        }
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+        }
+        .card.active {
+            transform: translateY(-2px);
+            box-shadow: 0 0 0 3px #38bdf8;
+            border-color: #0ea5e9;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl sm:text-4xl font-bold text-slate-900">Интерактивный гид по сборке ПК для разработчика</h1>
+            <p class="mt-2 text-lg text-slate-600">Анализ компонентов, их стоимости и значения для профессиональных задач</p>
+        </header>
+
+        <main>
+            <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+                <div class="text-center">
+                    <h2 class="text-xl font-semibold text-slate-700">Общая стоимость сборки</h2>
+                    <p id="total-cost" class="text-4xl font-bold text-sky-600 mt-2">217 000 руб.</p>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-lg p-6 md:p-8 mb-8">
+                <h2 class="text-2xl font-bold text-center text-slate-900 mb-6">Визуализация стоимости и описание компонентов</h2>
+                <p class="text-center text-slate-600 max-w-3xl mx-auto mb-8">
+                    Эта секция позволяет визуально сравнить цены на компоненты и детально изучить их характеристики. Кликните по элементу на диаграмме или выберите карточку ниже, чтобы увидеть подробное описание его роли и преимуществ для задач программирования и веб-разработки.
+                </p>
+                <div class="flex flex-col lg:flex-row gap-8 items-start">
+                    <div class="w-full lg:w-1/2">
+                        <div class="chart-container">
+                            <canvas id="priceChart"></canvas>
+                        </div>
+                    </div>
+                    <div id="details-panel" class="w-full lg:w-1/2 bg-slate-50 p-6 rounded-lg border border-slate-200 min-h-[400px]">
+                        <h3 id="detail-name" class="text-2xl font-bold text-slate-900 mb-2"></h3>
+                        <p id="detail-price" class="text-xl font-semibold text-sky-600 mb-4"></p>
+                        <div id="detail-description" class="text-slate-700 space-y-4"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-lg p-6 md:p-8">
+                 <h2 class="text-2xl font-bold text-center text-slate-900 mb-6">Выберите компонент для анализа</h2>
+                <div id="component-cards" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                </div>
+            </div>
+        </main>
+
+        <footer class="text-center mt-12 py-6 border-t border-slate-200">
+            <p class="text-slate-500">Интерактивный отчет создан для анализа и визуализации данных.</p>
+        </footer>
+    </div>
+
+    <script>
+        const componentData = [
+            {
+                name: "Видеокарта Palit GeForce RTX 5080 GamingPro V1",
+                price: 104000,
+                description: "<p><strong>Значение для работы:</strong> Это мощный графический процессор нового поколения, который ускоряет обработку данных, рендеринг и симуляции. Для программирования он даёт огромные преимущества в работе с <strong>машинным обучением</strong>, <strong>нейронными сетями</strong> (например, в Python с библиотеками TensorFlow или PyTorch) и <strong>научными вычислениями</strong>.</p><p><strong>Преимущества:</strong> Эта модель использует технологии трассировки лучей (Ray Tracing) для реалистичной графики и технологию масштабирования DLSS, которая значительно повышает производительность. В отличие от предыдущих поколений, она обеспечивает более быструю компиляцию шейдеров и ускоряет рабочие процессы в таких программах, как Blender, Unreal Engine, что особенно важно при создании игр и 3D-моделей для сайтов.</p>"
+            },
+            {
+                name: "Процессор AMD Ryzen 7 9800X3D",
+                price: 40000,
+                description: "<p><strong>Значение для работы:</strong> Центральный процессор — это мозг компьютера. Эта модель оснащена технологией <strong>3D V-Cache</strong>, которая значительно увеличивает объем кэш-памяти и ускоряет доступ к данным. Это критически важно для <strong>скорости компиляции кода</strong> в таких языках, как <strong>Java</strong> и <strong>Python</strong>, и для работы в тяжелых средах разработки, вроде <strong>PyCharm</strong>.</p><p><strong>Преимущества:</strong> Он превосходит многие другие процессоры в задачах, требующих большой кэш-памяти, что делает его идеальным для многопоточных вычислений, запуска виртуальных машин и одновременного выполнения нескольких ресурсоемких приложений. Он обеспечивает плавную и быструю работу, что незаменимо при создании сложных сайтов с большим количеством скриптов.</p>"
+            },
+            {
+                name: "Материнская плата Gigabyte B650M AORUS ELITE",
+                price: 18000,
+                description: "<p><strong>Значение для работы:</strong> Материнская плата — это основа, которая связывает все компоненты. Эта модель поддерживает современный сокет <strong>AM5</strong> для новых процессоров Ryzen и обеспечивает стабильную платформу.</p><p><strong>Преимущества:</strong> Она имеет слоты для быстрой оперативной памяти <strong>DDR5</strong> и накопителей <strong>PCIe 5.0</strong>, что позволяет значительно сократить время загрузки проектов, компиляции и установки программ. Встроенные сетевые контроллеры обеспечивают стабильное подключение, а продуманная система питания гарантирует надежную работу даже под высокой нагрузкой.</p>"
+            },
+            {
+                name: "Блок питания 1stplayer 1000W NGDP Gold White ATX3.1",
+                price: 10000,
+                description: "<p><strong>Значение для работы:</strong> Блок питания обеспечивает все компоненты стабильной энергией. Модель на 1000 Вт с сертификацией <strong>80 Plus Gold</strong> гарантирует высокую энергоэффективность, что снижает потребление энергии и тепловыделение.</p><p><strong>Преимущества:</strong> Соответствие стандарту <strong>ATX 3.1</strong> означает, что он готов к работе с самыми современными видеокартами, такими как RTX 5080, которые требуют большого количества энергии. Это предотвращает сбои, перезагрузки и защищает дорогостоящие компоненты, обеспечивая бесперебойную работу во время длительных сессий программирования или развертывания веб-сайтов.</p>"
+            },
+            {
+                name: "Оперативная память DDR5 32Gb 6000MHz",
+                price: 10000,
+                description: "<p><strong>Значение для работы:</strong> Оперативная память (ОЗУ) напрямую влияет на скорость многозадачности. Объем в 32 ГБ позволяет одновременно запускать виртуальные машины, несколько браузеров, среду разработки и другие приложения без замедлений.</p><p><strong>Преимущества:</strong> Технология <strong>DDR5</strong> и высокая частота <strong>6000 МГц</strong> обеспечивают невероятную скорость доступа к данным. Низкие задержки (тайминги) <strong>CL30</strong> дополнительно ускоряют работу, что критически важно при работе с большими базами данных, обработке изображений и работе над крупными проектами.</p>"
+            },
+            {
+                name: "Монитор LG 27GP950-B",
+                price: 35000,
+                description: "<p><strong>Значение для работы:</strong> Качественный монитор необходим для комфортной работы. Эта модель с разрешением <strong>4K</strong> и высокой частотой обновления обеспечивает четкое изображение, снижает нагрузку на глаза и делает текст более читаемым.</p><p><strong>Преимущества:</strong> Монитор обладает высокой <strong>цветопередачей</strong>, что важно для веб-дизайнеров и фронтенд-разработчиков при работе с макетами. Высокая частота обновления (144 Гц) делает анимации и скроллинг невероятно плавными. Удобное расположение окон и большая рабочая область позволяют держать открытыми множество вкладок, документацию и код одновременно.</p>"
+            }
+        ];
+
+        let priceChart;
+        let activeIndex = 0;
+
+        const detailName = document.getElementById('detail-name');
+        const detailPrice = document.getElementById('detail-price');
+        const detailDescription = document.getElementById('detail-description');
+        const componentCardsContainer = document.getElementById('component-cards');
+        const totalCostEl = document.getElementById('total-cost');
+        
+        const formatter = new Intl.NumberFormat('ru-RU', {
+            style: 'currency',
+            currency: 'RUB',
+            minimumFractionDigits: 0
+        });
+
+        function createComponentCards() {
+            componentData.forEach((component, index) => {
+                const card = document.createElement('div');
+                card.className = 'card bg-white p-4 rounded-lg border-2 border-slate-200 cursor-pointer';
+                card.dataset.index = index;
+                card.innerHTML = `
+                    <h4 class="font-semibold text-slate-800">${component.name.split(' ')[0]}</h4>
+                    <p class="text-sm text-slate-600 truncate">${component.name.substring(component.name.indexOf(' ') + 1)}</p>
+                    <p class="font-bold text-sky-600 mt-2">${formatter.format(component.price)}</p>
+                `;
+                card.addEventListener('click', () => {
+                    updateDetails(index);
+                });
+                componentCardsContainer.appendChild(card);
+            });
+        }
+        
+        function calculateTotalCost() {
+            const total = componentData.reduce((sum, item) => sum + item.price, 0);
+            totalCostEl.textContent = formatter.format(total);
+        }
+
+        function updateDetails(index) {
+            activeIndex = index;
+            const component = componentData[index];
+
+            detailName.textContent = component.name;
+            detailPrice.textContent = formatter.format(component.price);
+            detailDescription.innerHTML = component.description;
+
+            document.querySelectorAll('.card').forEach((card, cardIndex) => {
+                if (cardIndex === index) {
+                    card.classList.add('active');
+                } else {
+                    card.classList.remove('active');
+                }
+            });
+
+            if (priceChart) {
+                const backgroundColors = componentData.map((_, i) => i === index ? '#0ea5e9' : '#bae6fd');
+                 const borderColors = componentData.map((_, i) => i === index ? '#0284c7' : '#7dd3fc');
+                priceChart.data.datasets[0].backgroundColor = backgroundColors;
+                priceChart.data.datasets[0].borderColor = borderColors;
+                priceChart.update();
+            }
+        }
+
+        function initializeChart() {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            const labels = componentData.map(c => c.name.split(' '));
+            const data = componentData.map(c => c.price);
+            const backgroundColors = componentData.map((_, i) => i === activeIndex ? '#0ea5e9' : '#bae6fd');
+            const borderColors = componentData.map((_, i) => i === activeIndex ? '#0284c7' : '#7dd3fc');
+            
+            priceChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Цена (руб.)',
+                        data: data,
+                        backgroundColor: backgroundColors,
+                        borderColor: borderColors,
+                        borderWidth: 2,
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value / 1000 + 'k';
+                                },
+                                color: '#475569',
+                                font: {
+                                    weight: '500'
+                                }
+                            },
+                             grid: {
+                                color: '#e2e8f0',
+                            }
+                        },
+                        y: {
+                            ticks: {
+                                color: '#475569',
+                                font: {
+                                    size: 11
+                                }
+                            },
+                             grid: {
+                                display: false,
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `Цена: ${formatter.format(context.raw)}`;
+                                }
+                            }
+                        }
+                    },
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            updateDetails(index);
+                        }
+                    }
+                }
+            });
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            calculateTotalCost();
+            createComponentCards();
+            initializeChart();
+            updateDetails(0); 
+        });
+    </script>
+</body>
+</html>
